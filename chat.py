@@ -7,10 +7,12 @@ if "messages" not in st.session_state:
 if "pending" not in st.session_state:
     st.session_state.pending = False
 
+# Get API key from secrets
+api_key = st.secrets["OPENROUTER_API_KEY"]
+
 # Sidebar configuration
 with st.sidebar:
     st.header("Configuration")
-    api_key = st.text_input("OpenRouter API Key", type="password")
     http_referer = st.text_input("HTTP Referer (optional)")
     x_title = st.text_input("X-Title (optional)")
 
@@ -33,7 +35,6 @@ if st.session_state.pending:
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
         )
-        
         extra_headers = {}
         if http_referer:
             extra_headers["HTTP-Referer"] = http_referer
@@ -46,18 +47,14 @@ if st.session_state.pending:
                 model="google/gemini-exp-1206:free",
                 messages=st.session_state.messages,
             )
-            
             assistant_response = completion.choices[0].message.content
-            
             # Add assistant response to chat history
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": [{"type": "text", "text": assistant_response}]
             })
-            
             st.session_state.pending = False
             st.rerun()
-            
     except Exception as e:
         st.error(f"Error processing request: {str(e)}")
         st.session_state.pending = False
@@ -70,25 +67,18 @@ with st.form("chat_input"):
     submitted = st.form_submit_button("Enviar")
 
 if submitted:
-    if not api_key:
-        st.error("🔑 Please enter your API key in the sidebar")
-        st.stop()
-    
     content = []
     if text_input.strip():
         content.append({"type": "text", "text": text_input})
     if image_url.strip():
         content.append({"type": "image_url", "image_url": {"url": image_url}})
-    
     if not content:
         st.error("💬 Ingresa un mensaje o la URL de una imagen")
         st.stop()
-    
     # Add user message to chat history
     st.session_state.messages.append({
         "role": "user",
         "content": content
     })
-    
     st.session_state.pending = True
     st.rerun()
