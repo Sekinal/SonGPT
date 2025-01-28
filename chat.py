@@ -25,35 +25,30 @@ def get_response(client, messages):
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Main app
-def main():
-    st.title("🤖 Chatbot")
+st.title("🤖 Chatbot")
 
-    # Initialize session state for chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Initialize session state for chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # Initialize OpenAI client
-    client = get_client()
+# Initialize OpenAI client
+client = get_client()
 
-    # Chat input
-    user_input = st.chat_input("Type your message here...")
+# Chat input
+user_input = st.chat_input("Type your message here...")
 
-    # When user sends a message
-    if user_input:
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        
-        # Get bot response
-        response = get_response(client, st.session_state.messages)
-        
-        # Add bot response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+# When user sends a message
+if user_input:
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    
+    # Get bot response
+    response = get_response(client, st.session_state.messages)
+    
+    # Add bot response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Display chat history
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-if __name__ == "__main":
-    main()
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
