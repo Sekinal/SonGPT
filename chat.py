@@ -7,7 +7,7 @@ import json
 def get_client():
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key=st.secrets["openrouter_api_key"]
+        api_key=st.secrets["OPENROUTER_API_KEY"]
     )
 
 # Function to get chatbot response
