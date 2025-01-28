@@ -1,84 +1,102 @@
 import streamlit as st
 from openai import OpenAI
+import base64
+from PIL import Image
+import io
 
-# Initialize session state for messages and processing status
+# Initialize OpenAI client with OpenRouter
+@st.cache_resource
+def get_client():
+    return OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=st.secrets["OPENROUTER_API_KEY"]
+    )
+
+# Function to encode image to base64
+def encode_image(image):
+    buffered = io.BytesIO()
+    image.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+# Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "pending" not in st.session_state:
-    st.session_state.pending = False
 
-# Get API key from secrets
-api_key = st.secrets["OPENROUTER_API_KEY"]
+st.title("AI Chat Assistant")
 
-# Sidebar configuration
-with st.sidebar:
-    st.header("Configuration")
-    http_referer = st.text_input("HTTP Referer (optional)")
-    x_title = st.text_input("X-Title (optional)")
-
-# Main chat interface
-st.title("🤖 Image Chatbot")
-
-# Display chat messages
+# Display chat messages from history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        for part in message["content"]:
-            if part["type"] == "text":
-                st.markdown(part["text"])
-            elif part["type"] == "image_url":
-                st.image(part["image_url"]["url"], caption="Uploaded Image")
+        st.markdown(message["content"])
 
-# Handle pending responses
-if st.session_state.pending:
-    try:
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-        )
-        extra_headers = {}
-        if http_referer:
-            extra_headers["HTTP-Referer"] = http_referer
-        if x_title:
-            extra_headers["X-Title"] = x_title
+# File uploader for images
+uploaded_file = st.file_uploader("Upload an image (optional)", type=['png', 'jpg', 'jpeg'])
+image_url = None
 
-        with st.spinner("Thinking..."):
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
+
+# Accept user input
+prompt = st.chat_input("What's your question?")
+
+if prompt:
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Display user message
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Prepare the messages for the API
+    messages = []
+    if uploaded_file is not None:
+        # If there's an image, create a message with both text and image
+        messages.append({
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{encode_image(image)}"
+                    }
+                }
+            ]
+        })
+    else:
+        # If no image, just send the text
+        messages.append({
+            "role": "user",
+            "content": prompt
+        })
+
+    # Display assistant response
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        try:
+            client = get_client()
             completion = client.chat.completions.create(
-                extra_headers=extra_headers,
+                extra_headers={
+                    "HTTP-Referer": "https://your-site-url.com",  # Replace with your site URL
+                    "X-Title": "AI Chat Assistant",
+                },
                 model="google/gemini-exp-1206:free",
-                messages=st.session_state.messages,
+                messages=messages
             )
             assistant_response = completion.choices[0].message.content
+            message_placeholder.markdown(assistant_response)
+            
             # Add assistant response to chat history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": [{"type": "text", "text": assistant_response}]
-            })
-            st.session_state.pending = False
-            st.rerun()
-    except Exception as e:
-        st.error(f"Error processing request: {str(e)}")
-        st.session_state.pending = False
-        st.stop()
+            st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+            
+        except Exception as e:
+            message_placeholder.error(f"Error: {str(e)}")
 
-# Chat input form
-with st.form("chat_input"):
-    text_input = st.text_input("Tu mensaje", key="text_input")
-    image_url = st.text_input("URL de la imagen", key="image_url")
-    submitted = st.form_submit_button("Enviar")
-
-if submitted:
-    content = []
-    if text_input.strip():
-        content.append({"type": "text", "text": text_input})
-    if image_url.strip():
-        content.append({"type": "image_url", "image_url": {"url": image_url}})
-    if not content:
-        st.error("💬 Ingresa un mensaje o la URL de una imagen")
-        st.stop()
-    # Add user message to chat history
-    st.session_state.messages.append({
-        "role": "user",
-        "content": content
-    })
-    st.session_state.pending = True
+# Add a clear chat button
+if st.button("Clear Chat"):
+    st.session_state.messages = []
     st.rerun()
